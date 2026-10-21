@@ -14,15 +14,13 @@ Then in Claude Code: `/gus-create-story <what you did>`. Requires `sf` CLI authe
 
 ## Add your cloud
 
-Edit `skills/gus-create-story/config/teams.json`, copy the `TODO_YOUR_CLOUD` block, and fill in:
+Edit `skills/gus-create-story/config/teams.json`, copy the `TODO_YOUR_CLOUD` block, and fill in `productTag` and `sprintLike` (the release is asked per story):
 
 ```sql
 -- product tag
 SELECT Id, Name FROM ADM_Product_Tag__c WHERE Name LIKE '%<your team>%'
 -- sprint pattern (check names)
 SELECT Name FROM ADM_Sprint__c WHERE Name LIKE '%<your team>%' ORDER BY End_Date__c DESC LIMIT 5
--- builds: copy from a recent work item of yours
-SELECT Scheduled_Build__c, Found_in_Build__c FROM ADM_Work__c WHERE Name = 'W-XXXXXXXX'
 ```
 
 Run with `sf data query --query "<soql>" --target-org gus`. Open a PR with your entry.

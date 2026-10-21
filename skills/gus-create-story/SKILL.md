@@ -7,8 +7,8 @@ description: Create a categorized GUS User Story (ADM_Work__c) for any Industrie
 
 Config lives next to this file — read it first, never hardcode IDs:
 
-- `config/teams.json` — `defaults` + per-team `productTag`, `sprintLike`, `scheduledBuild`, `foundInBuild`, `taxonomy`, `patchRequiresSuite`
-- `config/taxonomy.json` — Category -> Metric lists, classification `hints`, `subjectPrefix` format
+- `config/teams.json` — `defaults` + per-team `productTag`, `sprintLike`, `patchRequiresSuite` (+ shared `foundInBuild`)
+- `config/taxonomy.json` — shared Category -> Metric lists (same for all clouds), classification `hints`, `subjectPrefix` format
 - `references/rich-text-and-test-suites.md` — HTML rules for `Details__c` and the composite POST shape for test suites
 - Optional user overrides: `~/.config/gus-work-item-skill/user.json` (`defaultTeam`, `assigneeId`, `storyPoints`)
 
@@ -30,14 +30,21 @@ Config lives next to this file — read it first, never hardcode IDs:
    SELECT Id, Name FROM ADM_Sprint__c WHERE Name LIKE '<sprintLike>' AND Start_Date__c <= TODAY AND End_Date__c >= TODAY ORDER BY End_Date__c DESC LIMIT 1
    ```
    If none: same query with `End_Date__c <= TODAY` ordered `End_Date__c DESC`.
-3. **Get subject + description** from the prompt, else ask. If only a subject is given, derive the description.
+3. **Release (Scheduled Build) — always ask the user.** Suggest recent values first:
+   ```sql
+   SELECT Scheduled_Build__r.Name, COUNT(Id) c FROM ADM_Work__c WHERE Assignee__c = '<assignee>' AND Scheduled_Build__c != null AND CreatedDate = LAST_N_DAYS:60 GROUP BY Scheduled_Build__r.Name ORDER BY MAX(CreatedDate) DESC LIMIT 4
+   ```
+   Offer those as options (AskUserQuestion; "Other" lets them type e.g. `264`). Resolve the typed
+   release: `SELECT Id, Name FROM ADM_Build__c WHERE Name = '<release>'`. If no exact match, list
+   `Name LIKE '%<release>%'` candidates and ask again. Never guess a release.
+4. **Get subject + description** from the prompt, else ask. If only a subject is given, derive the description.
    `Details__c` must be >= 20 characters. Strip any existing `[...]` prefix from the subject first.
-4. **Classify** into Category + Metric using the team's taxonomy (`taxonomy.json[<team.taxonomy>]`).
+5. **Classify** into Category + Metric using `taxonomy.json`.
    Use `hints`; fall back to `fallbackCategory`. Build the subject with `subjectPrefix`.
-5. **Review gate.** Show team (product tag + sprint), Category, Metric, final subject, and assignee.
+6. **Review gate.** Show team (product tag + sprint), release, Category, Metric, final subject, and assignee.
    Proceed only after the user confirms.
-6. **Format the description as rich-text HTML** (see references file). Never a run-on paragraph.
-7. **Create** `ADM_Work__c` via `sf api request rest "/services/data/v60.0/sobjects/ADM_Work__c" --method POST --body @body.json --target-org <targetOrg>` with:
+7. **Format the description as rich-text HTML** (see references file). Never a run-on paragraph.
+8. **Create** `ADM_Work__c` via `sf api request rest "/services/data/v60.0/sobjects/ADM_Work__c" --method POST --body @body.json --target-org <targetOrg>` with:
 
    | Field | Value |
    |---|---|
@@ -45,16 +52,17 @@ Config lives next to this file — read it first, never hardcode IDs:
    | `Product_Tag__c` | team `productTag` |
    | `Sprint__c` | sprint Id from step 2 |
    | `Assignee__c` | assignee from Setup |
-   | `Scheduled_Build__c` / `Found_in_Build__c` | team values |
+   | `Scheduled_Build__c` | release Id from step 3 |
+   | `Found_in_Build__c` | `defaults.foundInBuild` (`NA`) |
    | `Story_Points__c`, `Status__c`, `Type__c`, `Priority__c` | `defaults` (user overrides allowed) |
    | `Subject__c` | prefixed subject |
    | `Details__c` and `Details_and_Steps_to_Reproduce__c` | same HTML |
 
-8. **Query back** the record to get its `W-XXXXXXXX` Name.
-9. **Patches:** if Category = `Customer Advocacy` and Metric = `Patches` and the team has
+9. **Query back** the record to get its `W-XXXXXXXX` Name.
+10. **Patches:** if Category = `Customer Advocacy` and Metric = `Patches` and the team has
    `patchRequiresSuite: true`, ask for **Quadrant** and **automation links**, then create the
    suite + scenarios + junctions per `references/rich-text-and-test-suites.md`.
-10. **Report:** W-number, team/product tag, sprint, Category/Metric, assignee, and (for patches) suite + T-numbers.
+11. **Report:** W-number, team/product tag, sprint, Category/Metric, assignee, and (for patches) suite + T-numbers.
 
 ## Notes
 

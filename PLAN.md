@@ -8,8 +8,8 @@ Source skill: `~/.claude/skills/gus-create-story/SKILL.md` (single file, 239 lin
 |---|---|---|
 | `Assignee__c = 005B00000073lemIAA` | Assigns everything to Prithviraj | Resolve current user at runtime (`sf org display` -> username -> query `User`) and cache |
 | FSC / LSC product tags + sprint patterns | Other clouds absent | `config/teams.json` — one entry per team, add yours via PR |
-| `Scheduled_Build__c`, `Found_in_Build__c` (copied from W-23902376) | Wrong build for other orgs/releases | Per-team in `teams.json`; fall back to a `referenceWorkItem` clone |
-| Q3Q4 taxonomy (Quality Engineering metrics) | Other clouds categorize differently | Move to `config/taxonomy.json`; teams can override per team |
+| `Scheduled_Build__c`, `Found_in_Build__c` (copied from W-23902376) | Wrong build for other orgs/releases | Scheduled build: **asked per story** (suggest recent releases, resolve via `ADM_Build__c` by Name). Found-in: shared `NA` default |
+| Q3Q4 taxonomy (Quality Engineering metrics) | Other clouds categorize differently | Move to `config/taxonomy.json`; confirmed shared across all clouds |
 | Classification hints ("Playwright -> Automation") | QE-specific | Keep as `hints` in the taxonomy file |
 | Test-suite/patch rules | Patch->suite rule is a QE convention | Gate behind `teams.<id>.patchRequiresSuite` |
 | "Always ask FSC or LSC" | Hardcoded 2-option question | Build the question from `teams.json` keys; skip if the user has a `defaultTeam` |
@@ -44,8 +44,8 @@ User-level overrides live in `~/.config/gus-work-item-skill/user.json`
 7. **Switch yourself over**: replace `~/.claude/skills/gus-create-story` with a symlink
    (`./install.sh`). Original is left untouched until you run that.
 
-## Open questions
+## Decisions
 
-- Do other clouds use the same Q3Q4 `[Category][Metric]` subject prefix? If not, `taxonomy.json` needs a `prefixFormat` switch (stubbed as `subjectPrefix`).
-- Is a shared "reference work item" per cloud acceptable for Scheduled/Found-in build, or should we query the current release?
-- Where to host (git-emu org/repo name)?
+- Taxonomy and `[Category][Metric]` prefix: same for all clouds (confirmed).
+- Release: queried from GUS, user confirms/specifies each time (confirmed).
+- Repo host/name: TBD (user to provide).
