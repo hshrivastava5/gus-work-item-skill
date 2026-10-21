@@ -22,7 +22,7 @@ gus-work-item-skill/
   .claude-plugin/plugin.json
   skills/gus-create-story/
     SKILL.md                    # workflow only, no IDs
-    config/teams.json           # per-cloud product tag, sprint pattern, builds, taxonomy ref
+    config/teams.json           # per-cloud product tag, sprint pattern, patch rule
     config/taxonomy.json        # Category -> Metric lists + classification hints
     references/rich-text-and-test-suites.md   # HTML rules + composite POST shape
   install.sh                    # symlink into ~/.claude/skills
