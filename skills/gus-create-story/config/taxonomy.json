@@ -1,0 +1,30 @@
+{
+  "subjectPrefix": "[{category}][{metric}] ",
+  "default": {
+    "fallbackCategory": "Quality Engineering",
+    "categories": {
+      "Customer Success": ["Cases Resolved", "Investigation Help", "Onboarding Help", "Implementation Help"],
+      "Customer Advocacy": ["Patches", "ERR"],
+      "Quality Engineering": [
+        "User Journey Documentation", "Quality & Performance Test Plans", "Test Setup & Execution",
+        "Quality & Performance Automation", "Automation Execution Maintenance", "Blast Radius Measurement",
+        "Blitzes", "Tooling", "Test Data Design", "Test Data Population in Orgs", "QPBO Org",
+        "Documentation Blitz", "Bugs Opened", "Code Review / PR Review", "Localization Testing",
+        "Accessibility Testing", "Falcon/GCP/Alibaba Sign-offs"
+      ]
+    },
+    "hints": [
+      ["Writing/automating Playwright/Altura tests", "Quality Engineering", "Quality & Performance Automation"],
+      ["Fixing/migrating existing automated tests", "Quality Engineering", "Automation Execution Maintenance"],
+      ["Manual test runs / sign-off / functional verification", "Quality Engineering", "Test Setup & Execution"],
+      ["Verifying a PATCH or PATCH work items", "Customer Advocacy", "Patches"],
+      ["Authoring user-journey / test scenarios", "Quality Engineering", "User Journey Documentation"],
+      ["Test plans / specs", "Quality Engineering", "Quality & Performance Test Plans"],
+      ["Frameworks, scripts, dev-env, MCP, utilities", "Quality Engineering", "Tooling"],
+      ["Org creation / org-farm / pool setup", "Quality Engineering", "QPBO Org"],
+      ["Reviewing/approving PRs", "Quality Engineering", "Code Review / PR Review"],
+      ["Filing bugs", "Quality Engineering", "Bugs Opened"],
+      ["Helping a named customer (Slack/email/case)", "Customer Success", "(pick best Customer Success metric)"]
+    ]
+  }
+}

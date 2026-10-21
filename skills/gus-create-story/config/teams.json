@@ -1,0 +1,45 @@
+{
+  "defaults": {
+    "recordTypeId": "0129000000006gDAAQ",
+    "storyPoints": 1,
+    "status": "New",
+    "type": "User Story",
+    "priority": "P2",
+    "targetOrg": "gus"
+  },
+  "teams": {
+    "FSC": {
+      "label": "Financial Services Cloud",
+      "productTag": "a1aB0000000CEprIAG",
+      "productTagName": "Industries-FSC-Q3Q4",
+      "sprintLike": "%Industries FSC Q3Q4%",
+      "scheduledBuild": "a06EE000004rIFtYAM",
+      "foundInBuild": "a06B0000001Yxu7IAC",
+      "taxonomy": "default",
+      "patchRequiresSuite": true,
+      "keywords": ["Financial Services", "Household", "Action Plans", "Referrals"]
+    },
+    "LSC": {
+      "label": "Life Sciences Cloud",
+      "productTag": "a1aEE0000012DVFYA2",
+      "productTagName": "Industries-LSC-Q3",
+      "sprintLike": "%Industries Life Sciences Q3Q4%",
+      "scheduledBuild": "a06EE000004rIFtYAM",
+      "foundInBuild": "a06B0000001Yxu7IAC",
+      "taxonomy": "default",
+      "patchRequiresSuite": true,
+      "keywords": ["Life Sciences", "KAM", "Surveys", "Visits"]
+    },
+    "TODO_YOUR_CLOUD": {
+      "label": "TODO",
+      "productTag": "TODO a1a... id (SELECT Id, Name FROM ADM_Product_Tag__c WHERE Name LIKE '%<your team>%')",
+      "productTagName": "TODO",
+      "sprintLike": "TODO %<sprint name pattern>%",
+      "scheduledBuild": "TODO a06... id",
+      "foundInBuild": "TODO a06... id",
+      "taxonomy": "default",
+      "patchRequiresSuite": false,
+      "keywords": []
+    }
+  }
+}

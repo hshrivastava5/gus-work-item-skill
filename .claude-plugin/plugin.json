@@ -1,0 +1,7 @@
+{
+  "name": "gus-work-item-skill",
+  "version": "0.1.0",
+  "description": "Create categorized GUS user stories ([Category][Metric] subject, team sprint/product tag, rich-text description, optional test suites) for any Industries cloud",
+  "author": "prithviraj-chowdhury",
+  "skills": ["skills/gus-create-story"]
+}
