@@ -7,7 +7,7 @@ description, and (for patches) a linked test suite. See `PLAN.md` for the design
 ## Install
 
 ```bash
-git clone <repo-url> ~/gus-work-item-skill && ~/gus-work-item-skill/install.sh
+git clone git@git.soma.salesforce.com:prithviraj-chowdhury/gus-create-story.git ~/gus-work-item-skill && ~/gus-work-item-skill/install.sh
 ```
 
 Then in Claude Code: `/gus-create-story <what you did>`. Requires `sf` CLI authed to GUS (alias `gus`).
