@@ -1,0 +1,15 @@
+# Salesforce metadata and org-specific files
+force-app/
+dashboard/
+
+# CSV exports / scratch data
+*.csv
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
