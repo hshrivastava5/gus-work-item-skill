@@ -1,0 +1,22 @@
+{
+  "targetOrg": "gus",
+  "apiVersion": "v64.0",
+  "suiteId": "a81EE000006DpZ7YAK",
+  "suiteName": "TS-1218138",
+  "suiteLabel": "Altura Automation Suite",
+  "epicId": "a3QEE000002nuKr2AI",
+  "statusMap": {
+    "Passed":        "Pass",
+    "Failed":        "Fail",
+    "Trigger failed":"Fail",
+    "Running":       "In Progress"
+  },
+  "wiStatusMap": {
+    "Closed":      "Pass",
+    "In Progress": "In Progress",
+    "New":         "Not Executed"
+  },
+  "blockedPrefix": "Blocked",
+  "defaultStatus": "Not Executed",
+  "batchSize": 25
+}
