@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Altura → GUS Results Mapping</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #032D60 0%, #0070D2 100%); color: #fff; padding: 20px 32px; display: flex; align-items: center; gap: 14px; }
+  .header svg { flex-shrink: 0; }
+  .header h1 { font-size: 1.35rem; font-weight: 600; letter-spacing: .3px; }
+  .header p  { font-size: .82rem; opacity: .75; margin-top: 2px; }
+
+  /* Main layout */
+  .main { max-width: 1200px; margin: 28px auto; padding: 0 20px; }
+
+  /* Card */
+  .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 24px; margin-bottom: 20px; }
+  .card-title { font-size: .9rem; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #5a6a7a; margin-bottom: 16px; }
+
+  /* Input row */
+  .input-row { display: flex; gap: 10px; }
+  .input-row input { flex: 1; border: 1.5px solid #d8dde6; border-radius: 6px; padding: 10px 14px; font-size: .95rem; outline: none; transition: border-color .2s; }
+  .input-row input:focus { border-color: #0070D2; }
+  .btn { padding: 10px 22px; border-radius: 6px; font-size: .9rem; font-weight: 600; cursor: pointer; border: none; transition: all .15s; }
+  .btn-primary { background: #0070D2; color: #fff; }
+  .btn-primary:hover { background: #0558A5; }
+  .btn-primary:disabled { background: #b0c4d8; cursor: not-allowed; }
+  .btn-success { background: #2E7D32; color: #fff; }
+  .btn-success:hover { background: #1B5E20; }
+  .btn-success:disabled { background: #b0c4d8; cursor: not-allowed; }
+  .btn-sm { padding: 6px 14px; font-size: .82rem; }
+
+  /* Status bar */
+  .status-bar { font-size: .85rem; color: #5a6a7a; margin-top: 10px; min-height: 20px; }
+  .status-bar.error { color: #c0392b; }
+  .status-bar.success { color: #27ae60; }
+
+  /* Summary cards */
+  .summary-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .summary-card { border-radius: 8px; padding: 14px 16px; text-align: center; }
+  .summary-card .num  { font-size: 2rem; font-weight: 700; line-height: 1; }
+  .summary-card .lbl  { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; opacity: .8; }
+  .s-total  { background: #e8f0fe; color: #1967D2; }
+  .s-passed { background: #e6f4ea; color: #1E8E3E; }
+  .s-failed { background: #fce8e6; color: #C5221F; }
+  .s-blocked{ background: #fff3e0; color: #E65100; }
+  .s-notrun { background: #f1f3f4; color: #5F6368; }
+
+  /* Meta info */
+  .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 4px; }
+  .meta-item { font-size: .82rem; color: #5a6a7a; }
+  .meta-item span { font-weight: 600; color: #1a1a2e; }
+
+  /* Results table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+  thead th { background: #032D60; color: #fff; padding: 10px 12px; text-align: left; font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid #eef0f3; transition: background .1s; }
+  tbody tr:hover { background: #f7f9fc; }
+  tbody td { padding: 9px 12px; vertical-align: top; }
+
+  /* Verdict badge */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+  .badge-passed  { background: #e6f4ea; color: #1E8E3E; }
+  .badge-failed  { background: #fce8e6; color: #C5221F; }
+  .badge-blocked { background: #fff3e0; color: #E65100; }
+  .badge-notrun  { background: #f1f3f4; color: #5F6368; }
+  .badge-unknown { background: #e8e8e8; color: #666; }
+
+  /* Row tinting */
+  tr.row-passed  { background: #fafffe; }
+  tr.row-failed  { background: #fffafa; }
+  tr.row-blocked { background: #fffdf5; }
+
+  /* Stage chip */
+  .stage-chip { display: inline-block; background: #e8f0fe; color: #1967D2; border-radius: 4px; padding: 1px 7px; font-size: .72rem; font-weight: 600; }
+
+  /* Failure msg */
+  .fail-msg { color: #c0392b; font-size: .82rem; max-width: 340px; word-break: break-word; }
+  .rc-chip  { display: inline-block; background: #fce8e6; color: #C5221F; border-radius: 4px; padding: 1px 7px; font-size: .72rem; font-weight: 600; margin-top: 3px; }
+
+  /* ALT expand */
+  .expand-btn { background: none; border: none; cursor: pointer; color: #0070D2; font-size: .78rem; padding: 2px 0; text-decoration: underline; }
+  .alt-detail { margin-top: 6px; display: none; }
+  .alt-detail.open { display: block; }
+  .alt-row { background: #f7f9fc; border-left: 3px solid #d8dde6; padding: 6px 10px; margin-top: 4px; border-radius: 0 4px 4px 0; }
+  .alt-row.alt-failed { border-left-color: #C5221F; }
+  .alt-id  { font-weight: 700; color: #032D60; font-size: .8rem; }
+  .alt-msg { color: #555; font-size: .79rem; margin-top: 2px; word-break: break-word; }
+
+  /* GUS submit section */
+  .gus-section { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .exec-name-input { flex: 1; min-width: 280px; border: 1.5px solid #d8dde6; border-radius: 6px; padding: 9px 13px; font-size: .88rem; outline: none; }
+  .exec-name-input:focus { border-color: #0070D2; }
+  .gus-result { margin-top: 12px; padding: 12px 16px; border-radius: 6px; }
+  .gus-result.ok  { background: #e6f4ea; color: #1E8E3E; }
+  .gus-result.err { background: #fce8e6; color: #C5221F; }
+  .gus-link { color: #0070D2; font-weight: 600; }
+
+  /* Loading spinner */
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Hidden */
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="18" fill="rgba(255,255,255,.15)"/><path d="M10 18 L18 10 L26 18 L18 26 Z" fill="none" stroke="white" stroke-width="2"/><circle cx="18" cy="18" r="3" fill="white"/></svg>
+  <div>
+    <h1>Altura → GUS Results Mapping</h1>
+    <p>Analyze an Altura suite run and push results to GUS · TS-1218138</p>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Input card -->
+  <div class="card">
+    <div class="card-title">Run Input</div>
+    <div class="input-row">
+      <input id="runInput" type="text"
+        placeholder="Paste Altura run URL or UUID  (e.g. …/runs/d43b0f0d-…  or  d43b0f0d-…)"
+        autocomplete="off" />
+      <button class="btn btn-primary" id="analyzeBtn" onclick="analyze()">Analyze</button>
+    </div>
+    <div class="status-bar" id="statusBar"></div>
+  </div>
+
+  <!-- Summary -->
+  <div class="card hidden" id="summaryCard">
+    <div class="card-title">Run Summary</div>
+    <div class="meta-row" id="metaRow"></div>
+    <div style="margin-top:16px">
+      <div class="summary-row" id="summaryRow"></div>
+    </div>
+    <div id="noTWarning" class="hidden" style="margin-top:12px;padding:10px 14px;background:#fff8e1;border-left:4px solid #f9a825;border-radius:4px;font-size:.85rem;color:#5d4037;"></div>
+  </div>
+
+  <!-- Results table -->
+  <div class="card hidden" id="resultsCard">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:0">SCN Results</div>
+      <span style="font-size:.8rem;color:#5a6a7a" id="stageNote"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>Stage</th>
+            <th>SCN</th>
+            <th>Verdict</th>
+            <th>ALTs (P/F/Skip)</th>
+            <th>Primary Failure</th>
+            <th>Reason Code</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Submit to GUS -->
+  <div class="card hidden" id="gusCard">
+    <div class="card-title">Submit to GUS</div>
+    <div class="gus-section">
+      <input class="exec-name-input" id="execNameInput" type="text" placeholder="Execution name (auto-generated)" />
+      <button class="btn btn-success" id="submitBtn" onclick="submitToGUS()" disabled>
+        Submit to GUS
+      </button>
+    </div>
+    <div class="status-bar" id="gusStatus" style="margin-top:10px"></div>
+    <div class="gus-result hidden" id="gusResult"></div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+let currentAnalysis = null;
+
+async function analyze() {
+  const input = document.getElementById('runInput').value.trim();
+  if (!input) return;
+
+  const btn = document.getElementById('analyzeBtn');
+  const status = document.getElementById('statusBar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Analyzing…';
+  status.className = 'status-bar';
+  status.textContent = 'Fetching run data from Altura…';
+
+  // Reset downstream cards
+  ['summaryCard','resultsCard','gusCard'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('gusResult').classList.add('hidden');
+  document.getElementById('submitBtn').disabled = true;
+  currentAnalysis = null;
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({input})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Analysis failed');
+
+    currentAnalysis = data;
+    renderSummary(data);
+    renderTable(data);
+    renderGUSSection(data);
+
+    status.className = 'status-bar success';
+    status.textContent = `Analysis complete — ${data.total_scns} SCNs across ${countStages(data.scn_rows)} stage(s).`;
+  } catch (e) {
+    status.className = 'status-bar error';
+    status.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Analyze';
+  }
+}
+
+function countStages(rows) {
+  return new Set(rows.map(r => r.stage)).size;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString(); } catch(e) { return iso; }
+}
+
+function verdictBadge(v) {
+  const map = {
+    'Passed':     'badge-passed',
+    'Failed':     'badge-failed',
+    'Blocked':    'badge-blocked',
+    'Did Not Run':'badge-notrun',
+  };
+  return `<span class="badge ${map[v] || 'badge-unknown'}">${v}</span>`;
+}
+
+function rowClass(v) {
+  if (v === 'Passed') return 'row-passed';
+  if (v === 'Failed') return 'row-failed';
+  if (v === 'Blocked') return 'row-blocked';
+  return '';
+}
+
+function renderSummary(d) {
+  const vc = d.verdict_counts || {};
+  document.getElementById('metaRow').innerHTML = `
+    <div class="meta-item">Job ID: <span>${d.job_id || '—'}</span></div>
+    <div class="meta-item">Run ID: <span>${d.run_id}</span></div>
+    <div class="meta-item">PFG: <span>${d.pfg_name || '—'}</span></div>
+    <div class="meta-item">Branch: <span>${d.branch || '—'}</span></div>
+    <div class="meta-item">Scheduled: <span>${fmtDate(d.scheduled_at)}</span></div>
+    <div class="meta-item">Completed: <span>${fmtDate(d.completed_at)}</span></div>
+  `;
+  document.getElementById('summaryRow').innerHTML = `
+    <div class="summary-card s-total"><div class="num">${d.total_scns}</div><div class="lbl">Total SCNs</div></div>
+    <div class="summary-card s-passed"><div class="num">${vc.passed||0}</div><div class="lbl">Passed</div></div>
+    <div class="summary-card s-failed"><div class="num">${vc.failed||0}</div><div class="lbl">Failed</div></div>
+    <div class="summary-card s-blocked"><div class="num">${vc.blocked||0}</div><div class="lbl">Blocked</div></div>
+    <div class="summary-card s-notrun"><div class="num">${vc.not_run||0}</div><div class="lbl">Did Not Run</div></div>
+  `;
+  // Warning: SCNs with no T-number cannot be submitted to GUS
+  const noTEl = document.getElementById('noTWarning');
+  if (d.no_t_scns && d.no_t_scns.length > 0) {
+    noTEl.innerHTML = `⚠️ ${d.no_t_scns.length} SCN(s) have no T-number in Altura and will not appear in GUS: <strong>${d.no_t_scns.join(', ')}</strong>`;
+    noTEl.classList.remove('hidden');
+  } else {
+    noTEl.classList.add('hidden');
+  }
+  document.getElementById('summaryCard').classList.remove('hidden');
+}
+
+function renderTable(d) {
+  const stages = countStages(d.scn_rows);
+  document.getElementById('stageNote').textContent = stages > 1 ? `${stages} stages` : '';
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  d.scn_rows.forEach((row, idx) => {
+    const alts = `${row.alt_passed}/${row.alt_failed}/${row.alt_skipped}`;
+    const failHtml = row.primary_failure
+      ? `<div class="fail-msg">${esc(row.primary_failure)}</div>`
+      : '<span style="color:#aaa">—</span>';
+    const rcHtml = row.reason_code
+      ? `<span class="rc-chip">${esc(row.reason_code)}</span>`
+      : '<span style="color:#aaa">—</span>';
+
+    let altDetailHtml = '';
+    if (row.alt_details && row.alt_details.length > 0) {
+      const detId = `altd_${idx}`;
+      altDetailHtml = `
+        <button class="expand-btn" onclick="toggleAlt('${detId}')">▶ ${row.alt_details.length} ALT detail(s)</button>
+        <div class="alt-detail" id="${detId}">
+          ${row.alt_details.map(a => `
+            <div class="alt-row alt-failed">
+              <div class="alt-id">${esc(a.alt_id)} ${a.journey_id ? '· '+esc(a.journey_id) : ''}</div>
+              <div class="alt-msg">${esc(a.message)}</div>
+            </div>`).join('')}
+        </div>`;
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = rowClass(row.verdict);
+    tr.innerHTML = `
+      <td><span class="stage-chip">S${row.stage}</span></td>
+      <td><strong>${esc(row.scn)}</strong></td>
+      <td>${verdictBadge(row.verdict)}</td>
+      <td style="font-variant-numeric:tabular-nums;text-align:center">${alts}</td>
+      <td>${failHtml}${altDetailHtml}</td>
+      <td>${rcHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('resultsCard').classList.remove('hidden');
+}
+
+function renderGUSSection(d) {
+  // Auto-generate execution name
+  let dt = '—';
+  if (d.scheduled_at) {
+    try { dt = new Date(d.scheduled_at).toISOString().slice(0,16).replace('T',' '); } catch(e) {}
+  }
+  const autoName = `${d.pfg_name || 'LSC'}_${dt}`;
+  document.getElementById('execNameInput').placeholder = autoName;
+  document.getElementById('execNameInput').value = '';
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('gusCard').classList.remove('hidden');
+}
+
+function toggleAlt(id) {
+  const el = document.getElementById(id);
+  const btn = el.previousElementSibling;
+  if (el.classList.toggle('open')) {
+    btn.textContent = btn.textContent.replace('▶','▼');
+  } else {
+    btn.textContent = btn.textContent.replace('▼','▶');
+  }
+}
+
+async function submitToGUS() {
+  if (!currentAnalysis) return;
+
+  const btn = document.getElementById('submitBtn');
+  const status = document.getElementById('gusStatus');
+  const resultDiv = document.getElementById('gusResult');
+  const customName = document.getElementById('execNameInput').value.trim() || null;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Submitting…';
+  status.className = 'status-bar';
+  status.textContent = 'Creating GUS Suite Execution and Test Executions…';
+  resultDiv.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/submit-gus', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        run_id:       currentAnalysis.run_id,
+        job_id:       currentAnalysis.job_id,
+        pfg_name:     currentAnalysis.pfg_name,
+        scheduled_at: currentAnalysis.scheduled_at,
+        scn_rows:     currentAnalysis.scn_rows,
+        custom_name:  customName,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'GUS submit failed');
+
+    status.className = 'status-bar success';
+    status.textContent = `GUS execution created: ${data.exec_name}`;
+
+    resultDiv.className = 'gus-result ok';
+    resultDiv.innerHTML = `
+      <strong>✓ Success</strong><br>
+      Execution: <strong>${esc(data.exec_name)}</strong><br>
+      Suite Execution ID: <code>${esc(data.suite_exec_id)}</code><br>
+      PFG scope: ${data.pfg_scope_count} T-numbers (this PFG only)<br>
+      Test Executions: ${data.te_created_ok} created, ${data.te_failed} failed<br>
+      Altura results applied: ${data.scn_matched} matched, ${data.scn_unmatched} not in this run<br><br>
+      <a class="gus-link" href="${esc(data.gus_url)}" target="_blank">Open in GUS →</a>
+    `;
+    resultDiv.classList.remove('hidden');
+  } catch (e) {
+    status.className = 'status-bar error';
+    status.textContent = 'Error: ' + e.message;
+    resultDiv.className = 'gus-result err';
+    resultDiv.textContent = e.message;
+    resultDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit to GUS';
+  }
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// Allow Enter key to trigger analyze
+document.getElementById('runInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') analyze();
+});
+</script>
+</body>
+</html>
