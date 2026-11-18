@@ -41,6 +41,7 @@ _PFG_TAG_MAP: dict = {
 # Cache of T-number → PFG (populated once per process from GUS)
 _t_to_pfg_cache: dict = {}
 _t_to_wi_cache: dict  = {}
+_scn_to_t_cache: dict = {}   # SCN-id → T-number (from GUS epic WI subjects)
 
 
 # ---------------------------------------------------------------------------
@@ -226,15 +227,7 @@ def fetch_run_analysis(run_id: str) -> dict:
         pfg_name = ''
 
     # Identify SCNs with no T-number mapping (can't be submitted to GUS)
-    scn_to_t: dict = {}
-    try:
-        with open('/tmp/triggered_daily.json') as f:
-            _jobs = json.load(f)
-        for _job in _jobs:
-            for _scn in (_job.get('scns') or []):
-                scn_to_t[_scn] = _job['t_num']
-    except Exception:
-        pass
+    scn_to_t = load_scn_to_t()
     no_t_scns = [r['scn'] for r in scn_rows if r.get('scn') and not scn_to_t.get(r['scn'])]
 
     return {
@@ -275,6 +268,8 @@ def load_gus_pfg_map():
         if not m_t:
             continue
         t_num = m_t.group(1)
+        for scn_id in re.findall(r'(SCN-\d+)', subj):
+            _scn_to_t_cache[scn_id] = t_num
         # PFG is the first segment before '_' or first word-boundary chunk
         # Subject format: "Account Management_LSC-TJ-..." or "Account Management LSC-TJ-..."
         pfg_match = re.match(r'^([A-Za-z][A-Za-z ]+?)(?:_| LSC-)', subj)
@@ -287,20 +282,17 @@ def load_gus_pfg_map():
     return _t_to_pfg_cache
 
 
+def load_scn_to_t() -> dict:
+    """SCN-id → T-number, derived from the GUS epic WIs (no local files)."""
+    load_gus_pfg_map()
+    return _scn_to_t_cache
+
+
 def resolve_pfg_from_scns(scn_list: list) -> str:
     """Given a list of SCN IDs, look up their T-numbers and return the dominant PFG."""
     pfg_map = load_gus_pfg_map()
 
-    # Load SCN → T-number from triggered_daily.json
-    scn_to_t: dict = {}
-    try:
-        with open('/tmp/triggered_daily.json') as f:
-            jobs = json.load(f)
-        for job in jobs:
-            for scn in (job.get('scns') or []):
-                scn_to_t[scn] = job['t_num']
-    except Exception:
-        pass
+    scn_to_t = load_scn_to_t()
 
     from collections import Counter
     pfg_counts: Counter = Counter()
@@ -350,9 +342,17 @@ def composite_post(requests_list):
     return ok, fail
 
 
-def create_gus_execution(run_id, job_id, pfg_name, scheduled_at, scn_rows, custom_name=None):
-    # Reject blocked/non-PFG tokens that may have slipped through
-    pfg = pfg_name if (pfg_name and pfg_name not in _BLOCKED_PFG_TOKENS) else 'LSC'
+def _pfg_label(pfg_names):
+    names = [p for p in (pfg_names or []) if p and p not in _BLOCKED_PFG_TOKENS]
+    if not names:
+        return 'LSC'
+    return names[0] if len(names) == 1 else f'{len(names)} PFGs'
+
+
+def create_gus_execution(run_ids, job_ids, pfg_names, scheduled_at, scn_rows, custom_name=None):
+    """Create ONE suite execution from one or more (already merged) Altura runs."""
+    pfgs = {p for p in (pfg_names or []) if p and p not in _BLOCKED_PFG_TOKENS}
+    pfg = _pfg_label(pfg_names)
     if scheduled_at:
         try:
             dt = datetime.fromisoformat(scheduled_at.replace('Z', '+00:00'))
@@ -363,6 +363,17 @@ def create_gus_execution(run_id, job_id, pfg_name, scheduled_at, scn_rows, custo
         dt_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')
 
     exec_name = custom_name or f'{SUITE_NAME}_{pfg}_{dt_str}'
+
+    # SCN → T-number comes from GUS itself. Fail loudly (before creating anything)
+    # rather than silently submitting every test as Not Executed.
+    scn_to_t = load_scn_to_t()
+    if not scn_to_t:
+        raise Exception('Could not load SCN→T-number mapping from GUS epic work items '
+                        '(is the `gus` sf org authenticated?). Nothing was submitted.')
+    unmapped_scns = sorted({r['scn'] for r in scn_rows if r.get('scn') and not scn_to_t.get(r['scn'])})
+    if not any(scn_to_t.get(r.get('scn')) for r in scn_rows):
+        raise Exception('None of the SCNs in these runs map to a GUS T-number. '
+                        f'Nothing was submitted. SCNs: {", ".join(unmapped_scns[:10])}')
 
     # 1. Create Suite Execution (Name is auto-number; store label in Comments__c)
     r = subprocess.run(
@@ -384,17 +395,8 @@ def create_gus_execution(run_id, job_id, pfg_name, scheduled_at, scn_rows, custo
     if not suite_exec_id:
         raise Exception(f'Suite execution create failed: {r.stdout[:400]}')
 
-    # 2. Build SCN → T-number map and determine which T-numbers belong to this PFG
-    scn_to_t: dict = {}
+    # 2. Determine which T-numbers belong to the PFG scope
     pfg_t_numbers: set = set()
-    try:
-        with open('/tmp/triggered_daily.json') as f:
-            _jobs = json.load(f)
-        for _job in _jobs:
-            for _scn in (_job.get('scns') or []):
-                scn_to_t[_scn] = _job['t_num']
-    except Exception:
-        pass
 
     # T-numbers seen in this Altura run (via scn_rows)
     run_t_numbers: set = set()
@@ -406,7 +408,7 @@ def create_gus_execution(run_id, job_id, pfg_name, scheduled_at, scn_rows, custo
     # Load full PFG map and collect all T-numbers for this PFG from GUS epic WIs
     pfg_map = load_gus_pfg_map()
     for t_num, t_pfg in pfg_map.items():
-        if t_pfg == pfg:
+        if t_pfg in pfgs:
             pfg_t_numbers.add(t_num)
 
     # Union: T-numbers in the run OR in this PFG's WIs (cover the full PFG scope)
@@ -531,6 +533,8 @@ def create_gus_execution(run_id, job_id, pfg_name, scheduled_at, scn_rows, custo
         'scn_matched':     matched,
         'scn_unmatched':   unmatched,
         'pfg_scope_count': len(relevant_t_numbers),
+        'unmapped_scns':   unmapped_scns,
+        'run_count':       len(run_ids or []),
         'gus_url': f'https://gus.lightning.force.com/lightning/r/ADM_Suite_Execution__c/{suite_exec_id}/view',
     }
 
@@ -540,13 +544,17 @@ def create_gus_execution(run_id, job_id, pfg_name, scheduled_at, scn_rows, custo
 # ---------------------------------------------------------------------------
 
 class AnalyzeRequest(BaseModel):
-    input: str
+    input:  Optional[str] = None        # single link / UUID (legacy)
+    inputs: Optional[list] = None       # multiple links / UUIDs
 
 class SubmitGUSRequest(BaseModel):
-    run_id:       str
-    job_id:       str
-    pfg_name:     str
-    scheduled_at: str
+    run_id:       Optional[str] = None  # legacy single-run
+    job_id:       Optional[str] = None
+    pfg_name:     Optional[str] = None
+    run_ids:      Optional[list] = None
+    job_ids:      Optional[list] = None
+    pfg_names:    Optional[list] = None
+    scheduled_at: str = ''
     scn_rows:     list
     custom_name:  Optional[str] = None
 
@@ -556,12 +564,85 @@ async def index():
     return FileResponse("static/index.html")
 
 
+def split_inputs(req: AnalyzeRequest) -> list:
+    """Accept a list and/or free text with links separated by whitespace/commas/newlines."""
+    chunks = list(req.inputs or [])
+    if req.input:
+        chunks.append(req.input)
+    run_ids = []
+    for chunk in chunks:
+        for tok in re.split(r'[\s,;]+', str(chunk)):
+            if tok.strip():
+                rid = parse_run_id(tok)
+                if rid not in run_ids:
+                    run_ids.append(rid)
+    if not run_ids:
+        raise ValueError('Provide at least one Altura run link or UUID')
+    return run_ids
+
+
+def combine_analyses(analyses: list) -> dict:
+    """Merge several run analyses into one. Per SCN, the most recently completed
+    run that actually executed wins (a 'Did Not Run' never overrides a real result)."""
+    best: dict = {}
+    for a in analyses:
+        for row in a['scn_rows']:
+            row = dict(row, run_id=a['run_id'])
+            key = row.get('scn')
+            if not key:
+                continue
+            cur = best.get(key)
+            if cur is None:
+                best[key] = row
+                continue
+            cur_ran, new_ran = cur['verdict'] != 'Did Not Run', row['verdict'] != 'Did Not Run'
+            if new_ran and not cur_ran:
+                best[key] = row
+            elif new_ran == cur_ran and (row.get('completed_at') or '') >= (cur.get('completed_at') or ''):
+                best[key] = row
+    rows = sorted(best.values(), key=lambda r: (r.get('stage', 0), r['scn']))
+
+    vc = {'passed': 0, 'failed': 0, 'blocked': 0, 'not_run': 0}
+    for r in rows:
+        k = {'Passed': 'passed', 'Failed': 'failed', 'Blocked': 'blocked', 'Did Not Run': 'not_run'}.get(r['verdict'])
+        if k:
+            vc[k] += 1
+
+    pfgs = []
+    for a in analyses:
+        if a.get('pfg_name') and a['pfg_name'] not in pfgs:
+            pfgs.append(a['pfg_name'])
+    sched = sorted(a['scheduled_at'] for a in analyses if a.get('scheduled_at'))
+    comp = sorted(a['completed_at'] for a in analyses if a.get('completed_at'))
+    scn_to_t = load_scn_to_t()
+    first = analyses[0]
+    return {
+        'run_id':          ', '.join(a['run_id'] for a in analyses),
+        'run_ids':         [a['run_id'] for a in analyses],
+        'job_id':          ', '.join(a['job_id'] for a in analyses if a.get('job_id')),
+        'job_ids':         [a['job_id'] for a in analyses if a.get('job_id')],
+        'runs':            [{'run_id': a['run_id'], 'job_id': a.get('job_id', ''),
+                             'pfg_name': a.get('pfg_name', ''), 'total_scns': a['total_scns'],
+                             'overall_verdict': a.get('overall_verdict', '')} for a in analyses],
+        'overall_verdict': first.get('overall_verdict', '') if len(analyses) == 1 else 'combined',
+        'pfg_name':        ', '.join(pfgs),
+        'pfg_names':       pfgs,
+        'branch':          first.get('branch', ''),
+        'scheduled_at':    sched[0] if sched else '',
+        'completed_at':    comp[-1] if comp else '',
+        'scn_rows':        rows,
+        'verdict_counts':  vc,
+        'total_scns':      len(rows),
+        'no_t_scns':       [r['scn'] for r in rows if not scn_to_t.get(r['scn'])],
+    }
+
+
 @app.post("/api/analyze")
 async def analyze(req: AnalyzeRequest):
     try:
-        run_id = parse_run_id(req.input)
-        result = fetch_run_analysis(run_id)
-        return JSONResponse(result)
+        run_ids = split_inputs(req)
+        analyses = [fetch_run_analysis(rid) for rid in run_ids]
+        return JSONResponse(combine_analyses(analyses))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -569,8 +650,11 @@ async def analyze(req: AnalyzeRequest):
 @app.post("/api/submit-gus")
 async def submit_gus(req: SubmitGUSRequest):
     try:
+        run_ids   = req.run_ids   or ([req.run_id]   if req.run_id   else [])
+        job_ids   = req.job_ids   or ([req.job_id]   if req.job_id   else [])
+        pfg_names = req.pfg_names or ([req.pfg_name] if req.pfg_name else [])
         result = create_gus_execution(
-            req.run_id, req.job_id, req.pfg_name,
+            run_ids, job_ids, pfg_names,
             req.scheduled_at, req.scn_rows, req.custom_name
         )
         return JSONResponse(result)

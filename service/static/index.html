@@ -23,8 +23,8 @@
 
   /* Input row */
   .input-row { display: flex; gap: 10px; }
-  .input-row input { flex: 1; border: 1.5px solid #d8dde6; border-radius: 6px; padding: 10px 14px; font-size: .95rem; outline: none; transition: border-color .2s; }
-  .input-row input:focus { border-color: #0070D2; }
+  .input-row textarea { flex: 1; font-family: inherit; resize: vertical; border: 1.5px solid #d8dde6; border-radius: 6px; padding: 10px 14px; font-size: .95rem; outline: none; transition: border-color .2s; }
+  .input-row textarea:focus, .input-row input:focus { border-color: #0070D2; }
   .btn { padding: 10px 22px; border-radius: 6px; font-size: .9rem; font-weight: 600; cursor: pointer; border: none; transition: all .15s; }
   .btn-primary { background: #0070D2; color: #fff; }
   .btn-primary:hover { background: #0558A5; }
@@ -125,9 +125,9 @@
   <div class="card">
     <div class="card-title">Run Input</div>
     <div class="input-row">
-      <input id="runInput" type="text"
-        placeholder="Paste Altura run URL or UUID  (e.g. …/runs/d43b0f0d-…  or  d43b0f0d-…)"
-        autocomplete="off" />
+      <textarea id="runInput" rows="4"
+        placeholder="Paste one or more Altura run URLs / UUIDs — one per line (or comma-separated).&#10;Multiple runs are analyzed together and submitted as ONE GUS execution."
+        autocomplete="off"></textarea>
       <button class="btn btn-primary" id="analyzeBtn" onclick="analyze()">Analyze</button>
     </div>
     <div class="status-bar" id="statusBar"></div>
@@ -205,7 +205,7 @@ async function analyze() {
     const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({input})
+      body: JSON.stringify({inputs: input.split(/[\s,;]+/).filter(Boolean)})
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Analysis failed');
@@ -216,7 +216,7 @@ async function analyze() {
     renderGUSSection(data);
 
     status.className = 'status-bar success';
-    status.textContent = `Analysis complete — ${data.total_scns} SCNs across ${countStages(data.scn_rows)} stage(s).`;
+    status.textContent = `Analysis complete — ${(data.run_ids||[]).length} run(s), ${data.total_scns} SCNs across ${countStages(data.scn_rows)} stage(s).`;
   } catch (e) {
     status.className = 'status-bar error';
     status.textContent = 'Error: ' + e.message;
@@ -255,8 +255,9 @@ function rowClass(v) {
 function renderSummary(d) {
   const vc = d.verdict_counts || {};
   document.getElementById('metaRow').innerHTML = `
-    <div class="meta-item">Job ID: <span>${d.job_id || '—'}</span></div>
-    <div class="meta-item">Run ID: <span>${d.run_id}</span></div>
+    <div class="meta-item">Runs: <span>${(d.run_ids||[d.run_id]).length}</span></div>
+    <div class="meta-item">Job ID(s): <span>${d.job_id || '—'}</span></div>
+    <div class="meta-item">Run ID(s): <span>${d.run_id}</span></div>
     <div class="meta-item">PFG: <span>${d.pfg_name || '—'}</span></div>
     <div class="meta-item">Branch: <span>${d.branch || '—'}</span></div>
     <div class="meta-item">Scheduled: <span>${fmtDate(d.scheduled_at)}</span></div>
@@ -332,7 +333,8 @@ function renderGUSSection(d) {
   if (d.scheduled_at) {
     try { dt = new Date(d.scheduled_at).toISOString().slice(0,16).replace('T',' '); } catch(e) {}
   }
-  const autoName = `${d.pfg_name || 'LSC'}_${dt}`;
+  const pf = (d.pfg_names||[]);
+  const autoName = `TS-1218138_${pf.length===1 ? pf[0] : (pf.length ? pf.length+' PFGs' : 'LSC')}_${dt}`;
   document.getElementById('execNameInput').placeholder = autoName;
   document.getElementById('execNameInput').value = '';
   document.getElementById('submitBtn').disabled = false;
@@ -368,9 +370,9 @@ async function submitToGUS() {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
-        run_id:       currentAnalysis.run_id,
-        job_id:       currentAnalysis.job_id,
-        pfg_name:     currentAnalysis.pfg_name,
+        run_ids:      currentAnalysis.run_ids,
+        job_ids:      currentAnalysis.job_ids,
+        pfg_names:    currentAnalysis.pfg_names,
         scheduled_at: currentAnalysis.scheduled_at,
         scn_rows:     currentAnalysis.scn_rows,
         custom_name:  customName,
@@ -389,7 +391,7 @@ async function submitToGUS() {
       Suite Execution ID: <code>${esc(data.suite_exec_id)}</code><br>
       PFG scope: ${data.pfg_scope_count} T-numbers (this PFG only)<br>
       Test Executions: ${data.te_created_ok} created, ${data.te_failed} failed<br>
-      Altura results applied: ${data.scn_matched} matched, ${data.scn_unmatched} not in this run<br><br>
+      Altura results applied: ${data.scn_matched} matched, ${data.scn_unmatched} not in these runs<br>${(data.unmapped_scns||[]).length ? 'Unmapped SCNs (skipped): '+esc(data.unmapped_scns.join(', '))+'<br>' : ''}<br>
       <a class="gus-link" href="${esc(data.gus_url)}" target="_blank">Open in GUS →</a>
     `;
     resultDiv.classList.remove('hidden');
@@ -415,7 +417,7 @@ function esc(s) {
 
 // Allow Enter key to trigger analyze
 document.getElementById('runInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') analyze();
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) analyze();
 });
 </script>
 </body>
